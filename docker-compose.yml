@@ -1,0 +1,53 @@
+---
+version: '3.8'
+
+services:
+  langflow:
+    image: langflowai/langflow:latest
+    container_name: langflow_service
+    ports:
+      - "7860:7860"
+    volumes:
+      - ./langflow_graphs:/root/.cache/langflow/graphs
+      - ./agent_memory:/app/agent_memory
+      - ./project_files:/app/project_files
+      - ./project_docs:/app/project_docs
+      - ./langflow_components:/app/langflow_components
+    environment:
+      - LANGFLOW_DATABASE_URL=sqlite:////root/.cache/langflow/langflow.db
+      - LANGFLOW_COMPONENTS_PATH=/app/langflow_components
+    depends_on:
+      - ollama
+      - comfyui
+    networks:
+      - gbstudio_net
+
+  ollama:
+    image: ollama/ollama
+    container_name: ollama_service
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./ollama_data:/root/.ollama
+    networks:
+      - gbstudio_net
+
+  comfyui:
+    build: ~/ComfyUI
+    container_name: comfyui_service
+    command: --listen 0.0.0.0 --port 8188
+    ports:
+      - "8188:8188"
+    volumes:
+      - ~/ComfyUI/models:/comfyui/models
+      - ~/ComfyUI/custom_nodes:/comfyui/custom_nodes
+      - ./project_files/assets:/comfyui/output
+    networks:
+      - gbstudio_net
+
+networks:
+  gbstudio_net:
+    driver: bridge
+
+volumes:
+  ollama_data: {}

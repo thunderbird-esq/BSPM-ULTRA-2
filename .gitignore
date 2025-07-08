@@ -1,0 +1,18 @@
+#.gitignore
+# Python
+__pycache__/
+*.pyc
+
+# Environment
+.env
+.venv
+
+# Docker
+docker-data/
+
+# Node
+node_modules/
+
+# OS-specific
+.DS_Store
+Thumbs.db

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GBStudio Automation Hub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #1a1a1a; --window-bg: #c0c0c0; --window-border: #000000;
+            --text-color: #000000; --highlight-color: #000084; --highlight-text: #ffffff;
+            --button-bg: #c0c0c0; --button-shadow: #808080; --button-highlight: #ffffff;
+            --console-bg: #000000; --console-text: #00ff00; --font-family: 'Press Start 2P', cursive;
+            --color-user: #0074d9; --color-pm: #2ecc40; --color-art: #f012be; --color-system: #aaaaaa;
+        }
+        body { background-color: var(--bg-color); color: var(--text-color); font-family: var(--font-family); font-size: 10px; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 16px; box-sizing: border-box; }
+        .main-window { background-color: var(--window-bg); border: 2px solid var(--window-border); box-shadow: 4px 4px 0 0 var(--window-border), inset 2px 2px 0 0 var(--button-highlight), inset -2px -2px 0 0 var(--button-shadow); padding: 2px; width: 100%; max-width: 1200px; height: 90vh; max-height: 800px; display: flex; flex-direction: column; }
+        .title-bar { background-color: var(--highlight-color); color: var(--highlight-text); padding: 4px 6px; font-weight: bold; text-shadow: 1px 1px 0px var(--window-border); }
+        .content-area { display: flex; flex-grow: 1; padding: 10px; gap: 10px; overflow: hidden; }
+        .left-panel { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 10px; }
+        .dashboard-box { border: 2px solid var(--button-shadow); box-shadow: inset 2px 2px 0 0 var(--button-highlight); padding: 10px; }
+        .dashboard-box legend { font-weight: bold; padding: 0 5px; margin-left: 5px; }
+        .status-item { display: flex; justify-content: space-between; align-items: center; }
+        .status.working { color: #ffdc00; } .status.success { color: #2ecc40; } .status.error { color: #ff4136; }
+        .right-panel { flex: 3; display: flex; flex-direction: column; background: var(--button-shadow); border: 2px solid var(--window-border); box-shadow: inset 2px 2px 0 0 var(--window-border); }
+        .chat-window { background-color: var(--console-bg); padding: 10px; flex-grow: 1; overflow-y: auto; color: var(--console-text); }
+        .message { margin-bottom: 12px; } .message-header { margin-bottom: 4px; }
+        .message-sender { padding: 2px 4px; color: var(--window-border); display: inline-block; }
+        .message-sender[data-sender="User"] { background-color: var(--color-user); color: white; }
+        .message-sender[data-sender="PM"] { background-color: var(--color-pm); }
+        .message-sender[data-sender="Art"] { background-color: var(--color-art); }
+        .message-sender[data-sender="System"] { background-color: var(--color-system); }
+        .message-content { margin-left: 10px; line-height: 1.6; }
+        .message-content p { margin: 0 0 8px; } .message-content p:last-child { margin-bottom: 0; }
+        .message-content pre { background-color: #222; color: #9e9e9e; padding: 8px; border-radius: 3px; white-space: pre-wrap; word-break: break-all; font-size: 9px; }
+        .input-area { display: flex; padding: 10px; gap: 10px; border-top: 2px solid var(--button-shadow); }
+        .pixel-input { background-color: white; border: 2px solid var(--window-border); box-shadow: inset 2px 2px 0 0 var(--button-shadow); padding: 8px; font-family: var(--font-family); font-size: 10px; width: 100%; flex-grow: 1; }
+        .pixel-button { background-color: var(--button-bg); border: 2px solid var(--window-border); padding: 8px 12px; font-family: var(--font-family); font-size: 10px; cursor: pointer; box-shadow: 2px 2px 0 0 var(--window-border); }
+        .pixel-button:active, .pixel-button:disabled { box-shadow: inset 2px 2px 0 0 var(--window-border); transform: translate(2px, 2px); color: var(--button-shadow); cursor: not-allowed; }
+        .generated-image { max-width: 256px; border: 2px solid var(--console-text); margin-top: 10px; image-rendering: pixelated; }
+        .error-text { color: #ff4136; }
+        .pixel-button.approve { background-color: #2ecc40; color: white; }
+        .pixel-button.cancel { background-color: #ff4136; color: white; margin-left: 5px; }
+        .progress-bar-container { background-color: #555; border: 1px solid var(--console-text); padding: 1px; margin-top: 5px; }
+        .progress-bar { background-color: var(--color-pm); width: 0%; height: 10px; transition: width 0.2s ease-in-out; }
+    </style>
+</head>
+<body>
+    <div class="main-window">
+        <div class="title-bar">GBStudio Automation Hub</div>
+        <div class="content-area">
+            <div class="left-panel">
+                <fieldset class="dashboard-box">
+                    <legend>PROJECT DASHBOARD</legend>
+                    <div id="dashboard-content"></div>
+                </fieldset>
+            </div>
+            <div class="right-panel">
+                <div class="chat-window" id="chat-window"></div>
+            </div>
+        </div>
+        <div class="input-area">
+            <input type="text" id="user-input" class="pixel-input" placeholder="Talk to the Project Manager...">
+            <button id="send-btn" class="pixel-button">SEND</button>
+        </div>
+    </div>
+
+    <script>
+        try {
+            document.addEventListener('DOMContentLoaded', () => {
+                const chatWindow = document.getElementById('chat-window');
+                const userInput = document.getElementById('user-input');
+                const sendBtn = document.getElementById('send-btn');
+                const dashboardContent = document.getElementById('dashboard-content');
+                
+                let conversationHistory = [];
+                let pendingPlan = null;
+                const departmentStatus = { "Design": "Idle", "Code": "Idle", "Art": "Idle", "Music": "Idle", "QA": "Idle" };
+
+                function updateDashboard() {
+                    if (!dashboardContent) return;
+                    dashboardContent.innerHTML = '';
+                    Object.entries(departmentStatus).forEach(([dept, status]) => {
+                        const item = document.createElement('div');
+                        item.className = 'status-item';
+                        item.innerHTML = `<span>${dept}:</span> <span class="status ${status.toLowerCase()}" data-status="${status}">${status}</span>`;
+                        dashboardContent.appendChild(item);
+                    });
+                }
+
+                function setDeptStatus(dept, status) {
+                    if (departmentStatus.hasOwnProperty(dept)) {
+                        departmentStatus[dept] = status;
+                        updateDashboard();
+                    }
+                }
+                
+                function addMessage(sender, content, isHtml = false) {
+                    const message = { sender, content };
+                    if (sender === 'User' || sender === 'PM') {
+                        const historyContent = typeof content === 'string' ? content : 'Plan proposed by PM.';
+                        conversationHistory.push({sender, content: historyContent});
+                    }
+                    
+                    const messageEl = document.createElement('div');
+                    messageEl.className = 'message';
+                    let contentHtml = isHtml ? content : `<p>${content.replace(/\n/g, '<br>')}</p>`;
+                    
+                    messageEl.innerHTML = `<div class="message-header"><span class="message-sender" data-sender="${sender}">${sender}</span></div><div class="message-content" id="msg-${Date.now()}">${contentHtml}</div>`;
+                    
+                    chatWindow.appendChild(messageEl);
+                    chatWindow.scrollTop = chatWindow.scrollHeight;
+                    return messageEl;
+                }
+
+                function addApprovalButtons(plan, messageEl) {
+                    pendingPlan = plan;
+                    const messageContent = messageEl.querySelector('.message-content');
+                    if (!messageContent) return;
+
+                    const buttonContainer = document.createElement('div');
+                    buttonContainer.className = 'approval-buttons';
+                    buttonContainer.style.marginTop = '10px';
+
+                    const approveBtn = document.createElement('button');
+                    approveBtn.className = 'pixel-button approve';
+                    approveBtn.textContent = '✔ Approve';
+                    approveBtn.onclick = () => handleApproval(buttonContainer);
+
+                    const cancelBtn = document.createElement('button');
+                    cancelBtn.className = 'pixel-button cancel';
+                    cancelBtn.textContent = '✖ Cancel';
+                    cancelBtn.onclick = () => handleCancel(buttonContainer);
+
+                    buttonContainer.appendChild(approveBtn);
+                    buttonContainer.appendChild(cancelBtn);
+                    messageContent.appendChild(buttonContainer);
+                    sendBtn.disabled = true;
+                }
+
+                async function handleApproval(buttonContainer) {
+                    buttonContainer.remove();
+                    if (!pendingPlan) return;
+
+                    const artTask = pendingPlan.find(p => p.department === 'Art');
+                    if (!artTask) {
+                        addMessage('System', 'No Art task found in the approved plan.');
+                        sendBtn.disabled = false;
+                        return;
+                    }
+                    
+                    setDeptStatus('Art', 'Working');
+                    const artReportCard = addMessage('Art', `<div id="art-report-${Date.now()}"><p>Delegating to Art Department...</p></div>`, true);
+                    const reportContentEl = artReportCard.querySelector('.message-content');
+
+                    try {
+                        const response = await fetch('http://127.0.0.1:8000/api/v1/execute', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ plan: pendingPlan })
+                        });
+
+                        if (!response.ok) throw new Error(`Server returned an error: ${response.statusText}`);
+                        
+                        const result = await response.json();
+                        const promptId = result.prompt_id;
+                        if (!promptId) throw new Error('Did not receive a prompt_id from the server.');
+                        
+                        reportContentEl.innerHTML = `
+                            <p><strong>PM Task:</strong> "${result.pm_instruction}"</p>
+                            <p><strong>Generated Prompt for ComfyUI:</strong></p><pre>${result.generated_prompt}</pre>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar" id="progress-${promptId}"></div>
+                            </div>
+                            <p class="progress-text" id="progress-text-${promptId}">Waiting for ComfyUI...</p>
+                            <div class="image-container" id="image-container-${promptId}"></div>
+                        `;
+
+                        listenToComfyUI(promptId);
+
+                    } catch (error) {
+                        console.error("Execution Error:", error);
+                        addMessage('System', `<b>Critical Error during execution:</b> ${error.message}`, true);
+                        setDeptStatus('Art', 'Error');
+                        sendBtn.disabled = false;
+                    }
+                }
+
+                function handleCancel(buttonContainer) {
+                    buttonContainer.remove();
+                    pendingPlan = null;
+                    addMessage('System', 'Plan canceled. Ready for your next instruction.');
+                    sendBtn.disabled = false;
+                }
+
+                async function handleUserInput(userMessageText) {
+                    if (!userMessageText.trim()) return;
+                    
+                    addMessage('User', userMessageText);
+                    const thinkingMessage = addMessage('System', 'PM is thinking...');
+                    userInput.value = '';
+                    sendBtn.disabled = true;
+
+                    try {
+                        const response = await fetch('http://127.0.0.1:8000/api/v1/prompt', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ message: userMessageText, history: conversationHistory.slice(-6) })
+                        });
+                        
+                        chatWindow.removeChild(thinkingMessage);
+
+                        if (!response.ok) throw new Error(`Server returned an error: ${response.statusText}`);
+
+                        const result = await response.json();
+                        const pmMessageEl = addMessage('PM', result.response_to_user || "I'm sorry, I encountered an issue.");
+                        
+                        if (result.action_type === 'propose_delegation' && result.plan && result.plan.length > 0) {
+                            addApprovalButtons(result.plan, pmMessageEl);
+                        } else {
+                            sendBtn.disabled = false;
+                        }
+
+                    } catch (error) {
+                        if (document.body.contains(thinkingMessage)) chatWindow.removeChild(thinkingMessage);
+                        console.error('API Error:', error);
+                        addMessage('System', `<b>Critical Connection Error: Failed to fetch.</b><br>Is the FastAPI server running?`, true);
+                        sendBtn.disabled = false;
+                    } finally {
+                        userInput.focus();
+                    }
+                }
+                
+                function listenToComfyUI(promptId) {
+                    const ws = new WebSocket(`ws://127.0.0.1:8188/ws?clientId=${promptId}`);
+                    const progressBar = document.getElementById(`progress-${promptId}`);
+                    const progressText = document.getElementById(`progress-text-${promptId}`);
+                    const imageContainer = document.getElementById(`image-container-${promptId}`);
+
+                    ws.onmessage = function(event) {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'progress') {
+                            const progress = (data.data.value / data.data.max) * 100;
+                            if(progressBar) progressBar.style.width = `${progress}%`;
+                            if(progressText) progressText.textContent = `Generating... ${Math.round(progress)}%`;
+                        } else if (data.type === 'executed' && data.data.node.startsWith('9')) {
+                            setDeptStatus('Art', 'Success');
+                            const images = data.data.output.images;
+                            images.forEach(img => {
+                                const imageUrl = `http://127.0.0.1:8188/view?filename=${img.filename}&type=${img.type}&subfolder=${img.subfolder}`;
+                                const imgElement = document.createElement('img');
+                                imgElement.src = imageUrl;
+                                imgElement.className = 'generated-image';
+                                if (imageContainer) imageContainer.appendChild(imgElement);
+                            });
+                            if(progressText) progressText.textContent = "Image generation complete!";
+                            sendBtn.disabled = false;
+                            userInput.focus();
+                            ws.close();
+                        }
+                    };
+                    ws.onopen = () => { if(progressText) progressText.textContent = "Job queued. Starting..."; };
+                    ws.onerror = (err) => {
+                        if(progressText) progressText.textContent = "Error connecting to ComfyUI.";
+                        setDeptStatus('Art', 'Error');
+                        console.error('WebSocket Error:', err);
+                        sendBtn.disabled = false;
+                    };
+                }
+
+                // --- Init & Styling ---
+                const style = document.createElement('style');
+                style.innerHTML = `
+                    .generated-image { max-width: 256px; border: 2px solid var(--console-text); margin-top: 10px; image-rendering: pixelated; } 
+                    .message-content pre { background-color: #222; color: #9e9e9e; padding: 8px; border-radius: 3px; white-space: pre-wrap; word-break: break-all; font-size: 9px; }
+                    .status.working { color: #ffdc00; } .status.success { color: #2ecc40; } .status.error { color: #ff4136; }
+                    .pixel-button.approve { background-color: #2ecc40; color: white; }
+                    .pixel-button.cancel { background-color: #ff4136; color: white; margin-left: 5px; }
+                    .progress-bar-container { background-color: #555; border: 1px solid var(--console-text); padding: 1px; margin-top: 5px; }
+                    .progress-bar { background-color: var(--color-pm); width: 0%; height: 10px; transition: width 0.2s ease-in-out; }
+                `;
+                document.head.appendChild(style);
+                updateDashboard();
+                addMessage('System', 'GBStudio Automation Hub Initialized. Welcome, Studio Director.\nEnsure local services (Ollama, ComfyUI) and the FastAPI server are running.');
+            });
+        } catch (e) {
+            // If the script fails to even parse, show a very basic error.
+            document.body.innerHTML = `<div style="color:red; font-family: monospace; padding: 20px;"><h1>JavaScript CRITICAL ERROR</h1><p>The script could not be loaded. Please check the browser console (View > Developer > JavaScript Console) for syntax errors.</p><pre>${e.stack}</pre></div>`;
+        }
+    </script>
+</body>
+</html>
