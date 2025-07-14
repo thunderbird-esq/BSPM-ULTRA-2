@@ -17,5 +17,24 @@ node_modules/
 .DS_Store
 Thumbs.db
 
+#Gemini
+GEMINI*
+
 #comfy
 comfyui/
+./comfyui_source/
+comfyui_source/
+
+#ollama
+./.ollama
+
+# Build Artifacts & Database
+project_files/build/
+project_memory.db
+
+# Database Files
+*.db
+*.sqlite3
+
+# Editor Swap Files
+*.swp

@@ -295,3 +295,4 @@ The Art agent's logic in main.py must be updated to select the appropriate workf
 
 Final Instruction
 After generating the code for each phase, add a single markdown comment block explaining how you would manually test the new features to ensure they work as intended.
+

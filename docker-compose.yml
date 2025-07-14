@@ -18,6 +18,8 @@ services:
       # Mount the ComfyUI output directory to a shared volume
       - comfyui_output:/app/comfyui_output
     command: uvicorn scripts.main:app --host 0.0.0.0 --port 8000
+    env_file:
+      - .env
     depends_on:
       - comfyui
       - ollama
@@ -27,13 +29,15 @@ services:
   comfyui:
     # This service uses a standard ComfyUI image and mounts your local ComfyUI directory.
     # This gives it access to all your models, custom nodes, and other configurations.
-    image: comfyanonymous/comfyui:latest
-    command: python main.py --listen 0.0.0.0
+    image: gbstudio_hub-comfyui:latest
+    command: python main.py --listen 0.0.0.0 ${COMFYUI_EXTRA_ARGS}
     ports:
       - "8188:8188"
     volumes:
       - ~/ComfyUI:/ComfyUI
       - comfyui_output:/ComfyUI/output
+    env_file:
+      - .env
 
   ollama:
     # This service uses the standard Ollama image and mounts your local models directory.
@@ -45,4 +49,3 @@ services:
 
 volumes:
   comfyui_output:
-
