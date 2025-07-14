@@ -24,7 +24,7 @@ services:
       - comfyui
       - ollama
     environment:
-      - COMFYUI_OUTPUT_DIR=/app/comfyui_output
+      - COMFYUI_OUTPUT_PATH=/app/comfyui_output
 
   comfyui:
     # This service uses a standard ComfyUI image and mounts your local ComfyUI directory.
@@ -34,7 +34,7 @@ services:
     ports:
       - "8188:8188"
     volumes:
-      - ~/ComfyUI:/ComfyUI
+      - ${HOME}/ComfyUI:/ComfyUI
       - comfyui_output:/ComfyUI/output
     env_file:
       - .env
@@ -45,7 +45,7 @@ services:
     ports:
       - "11434:11434"
     volumes:
-      - ~/.ollama:/root/.ollama
+      - ${HOME}/.ollama:/root/.ollama
 
 volumes:
   comfyui_output:
