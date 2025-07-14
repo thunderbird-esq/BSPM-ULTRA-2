@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GBStudio Automation Hub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #1a1a1a; --window-bg: #c0c0c0; --window-border: #000000;
+            --text-color: #000000; --highlight-color: #000084; --highlight-text: #ffffff;
+            --button-bg: #c0c0c0; --button-shadow: #808080; --button-highlight: #ffffff;
+            --console-bg: #000000; --console-text: #00ff00;
+        }
+        body { background-color: var(--bg-color); color: var(--text-color); font-family: 'Press Start 2P', cursive; font-size: 10px; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 16px; box-sizing: border-box; }
+        .main-window { background-color: var(--window-bg); border: 2px solid var(--window-border); box-shadow: 4px 4px 0 0 var(--window-border), inset 2px 2px 0 0 var(--button-highlight), inset -2px -2px 0 0 var(--button-shadow); padding: 2px; width: 100%; max-width: 1200px; height: 90vh; max-height: 800px; display: flex; flex-direction: column; }
+        .title-bar { background-color: var(--highlight-color); color: var(--highlight-text); padding: 4px 6px; font-weight: bold; text-shadow: 1px 1px 0px var(--window-border); }
+        .content-area { display: flex; flex-grow: 1; padding: 10px; gap: 10px; overflow: hidden; }
+        #left-panel { flex: 2; display: flex; flex-direction: column; gap: 10px; }
+        #right-panel { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+        .panel-box { border: 2px solid var(--button-shadow); box-shadow: inset 2px 2px 0 0 var(--button-highlight); padding: 10px; background: var(--window-bg); }
+        .panel-box legend { font-weight: bold; padding: 0 5px; margin-left: 5px; }
+        #chat-window { flex-grow: 1; background-color: var(--console-bg); padding: 10px; overflow-y: auto; color: var(--console-text); border: 2px solid var(--window-border); }
+        #assets-grid { flex-grow: 1; overflow-y: auto; display: grid; grid-template-columns: 1fr; gap: 10px; }
+        .asset-card { background: var(--window-bg); border: 2px solid var(--window-border); padding: 10px; }
+        .image-container { width: 100%; padding-top: 100%; position: relative; background: #333; border: 2px solid var(--window-border); margin-top: 10px; image-rendering: pixelated; }
+        .image-container img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; }
+        .message { margin-bottom: 12px; }
+        .message-sender { padding: 2px 4px; color: var(--window-border); display: inline-block; background-color: var(--highlight-color); color: white; }
+        .message-content { margin-left: 10px; line-height: 1.6; color: white; white-space: pre-wrap; }
+        .pixel-button { background-color: var(--button-bg); border: 2px solid var(--window-border); padding: 8px 12px; font-family: 'Press Start 2P', cursive; font-size: 10px; cursor: pointer; box-shadow: 2px 2px 0 0 var(--window-border); }
+        .input-area { display: flex; padding: 10px; gap: 10px; border-top: 2px solid var(--button-shadow); }
+        .pixel-input { background-color: white; border: 2px solid var(--window-border); box-shadow: inset 2px 2px 0 0 var(--button-shadow); padding: 8px; font-family: 'Press Start 2P', cursive; font-size: 10px; width: 100%; flex-grow: 1; }
+    </style>
+</head>
+<body>
+    <div class="main-window">
+        <div class="title-bar">GBStudio Director's Dashboard</div>
+        <div class="content-area">
+            <div id="left-panel">
+                <fieldset class="panel-box">
+                    <legend>Studio Communications</legend>
+                    <div id="chat-window"></div>
+                </fieldset>
+            </div>
+            <div id="right-panel">
+                <fieldset class="panel-box">
+                    <legend>Generated Assets</legend>
+                    <div id="assets-grid"></div>
+                </fieldset>
+            </div>
+        </div>
+        <div class="input-area">
+            <input type="text" id="prompt-input" class="pixel-input" placeholder="Enter high-level request...">
+            <button onclick="submitRequest()" class="pixel-button">Submit Request</button>
+        </div>
+    </div>
+
+    <script>
+        const chatWindow = document.getElementById('chat-window');
+        const assetsGrid = document.getElementById('assets-grid');
+        let currentDelegations = [];
+        let currentTaskName = "";
+
+        function addMessage(sender, content, actions = []) {
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message';
+            let actionsHtml = actions.map(action => 
+                `<button class="pixel-button" onclick="${action.onclick}">${action.text}</button>`
+            ).join(' ');
+            messageEl.innerHTML = `
+                <div class="message-header"><span class="message-sender">${sender}</span></div>
+                <div class="message-content">${content}</div>
+                <div class="message-actions" style="margin-top: 5px;">${actionsHtml}</div>
+            `;
+            chatWindow.appendChild(messageEl);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        async function submitRequest() {
+            const input = document.getElementById('prompt-input');
+            const prompt = input.value;
+            if (!prompt) return;
+            
+            addMessage('You', prompt);
+            input.value = '';
+            addMessage('System', 'Contacting Project Manager...');
+
+            const response = await fetch('/api/v1/propose', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: prompt })
+            });
+            const plan = await response.json();
+            currentDelegations = plan.delegations;
+            currentTaskName = currentDelegations.find(d => d.department === 'Art')?.task || "Untitled Asset";
+
+            addMessage('PM', plan.summary_for_user, [
+                { text: 'Approve Plan', onclick: 'getArtDirectorPrompt()' },
+                { text: 'Cancel', onclick: 'this.parentElement.innerHTML = "Plan cancelled."' }
+            ]);
+        }
+
+        async function getArtDirectorPrompt() {
+            addMessage('System', `PM plan approved. Tasking Art Director with: "${currentTaskName}"`);
+
+            const response = await fetch('/api/v1/generate_prompt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ task: currentTaskName })
+            });
+            const artPrompt = await response.json();
+            
+            const promptHtml = `
+                <p>Here is the prompt I've prepared for the generation engine:</p>
+                <textarea id="art-prompt-textarea" style="width: 95%; height: 80px; background: #333; color: white; border: 1px solid white; padding: 5px;">${artPrompt.final_prompt}</textarea>
+            `;
+            addMessage('Art Director', promptHtml, [
+                { text: 'Approve & Generate', onclick: 'executeGeneration()' },
+                { text: 'Revise Prompt', onclick: 'this.parentElement.innerHTML = "Revision requested. (Feature not yet implemented)"' }
+            ]);
+        }
+
+        async function executeGeneration() {
+            const finalPrompt = document.getElementById('art-prompt-textarea').value;
+            addMessage('System', 'Art Director prompt approved. Starting generation...');
+            
+            await fetch('/api/v1/execute_generation', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: finalPrompt, task_name: currentTaskName })
+            });
+        }
+
+        function setupWebSocket() {
+            const ws = new WebSocket(`ws://localhost:8000/ws`);
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                let card = document.getElementById(`asset-${data.name.replace(/\s+/g, '-')}`);
+                if (!card && data.event === 'NEW') {
+                    card = document.createElement('div');
+                    card.className = 'asset-card';
+                    card.id = `asset-${data.name.replace(/\s+/g, '-')}`;
+                    assetsGrid.prepend(card);
+                }
+                if (card) {
+                    const imageUrl = data.image_url ? `<img src="${data.image_url}?t=${new Date().getTime()}" alt="Generated Asset">` : '<span>Generating...</span>';
+                    card.innerHTML = `
+                        <h3>${data.name}</h3>
+                        <div class="status">${data.status}</div>
+                        ${data.status === 'COMPLETED' ? `<div class="image-container">${imageUrl}</div>` : ''}
+                    `;
+                }
+            };
+            ws.onclose = () => setTimeout(setupWebSocket, 5000);
+        }
+
+        addMessage('System', 'Welcome, Director. Please issue your high-level requests to the Project Manager.');
+        setupWebSocket();
+    </script>
+</body>
+</html>

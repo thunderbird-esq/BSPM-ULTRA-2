@@ -1,53 +1,48 @@
----
 version: '3.8'
 
+# This docker-compose file is configured for local development.
+# It mounts your local Ollama and ComfyUI directories to use your existing models.
 services:
-  langflow:
-    image: langflowai/langflow:latest
-    container_name: langflow_service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
-      - "7860:7860"
+      - "8000:8000"
     volumes:
-      - ./langflow_graphs:/root/.cache/langflow/graphs
-      - ./agent_memory:/app/agent_memory
-      - ./project_files:/app/project_files
-      - ./project_docs:/app/project_docs
-      - ./langflow_components:/app/langflow_components
-    environment:
-      - LANGFLOW_DATABASE_URL=sqlite:////root/.cache/langflow/langflow.db
-      - LANGFLOW_COMPONENTS_PATH=/app/langflow_components
+      # Mount local scripts and workflows for live development
+      - ./scripts:/app/scripts
+      - ./workflows:/app/workflows
+      # Mount the GB Studio project directory
+      - ./gbstudio_project:/app/gbstudio_project
+      # Mount the ComfyUI output directory to a shared volume
+      - comfyui_output:/app/comfyui_output
+    command: uvicorn scripts.main:app --host 0.0.0.0 --port 8000
     depends_on:
-      - ollama
       - comfyui
-    networks:
-      - gbstudio_net
-
-  ollama:
-    image: ollama/ollama
-    container_name: ollama_service
-    ports:
-      - "11434:11434"
-    volumes:
-      - ./ollama_data:/root/.ollama
-    networks:
-      - gbstudio_net
+      - ollama
+    environment:
+      - COMFYUI_OUTPUT_DIR=/app/comfyui_output
 
   comfyui:
-    build: ~/ComfyUI
-    container_name: comfyui_service
-    command: --listen 0.0.0.0 --port 8188
+    # This service uses a standard ComfyUI image and mounts your local ComfyUI directory.
+    # This gives it access to all your models, custom nodes, and other configurations.
+    image: comfyanonymous/comfyui:latest
+    command: python main.py --listen 0.0.0.0
     ports:
       - "8188:8188"
     volumes:
-      - ~/ComfyUI/models:/comfyui/models
-      - ~/ComfyUI/custom_nodes:/comfyui/custom_nodes
-      - ./project_files/assets:/comfyui/output
-    networks:
-      - gbstudio_net
+      - ~/ComfyUI:/ComfyUI
+      - comfyui_output:/ComfyUI/output
 
-networks:
-  gbstudio_net:
-    driver: bridge
+  ollama:
+    # This service uses the standard Ollama image and mounts your local models directory.
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ~/.ollama:/root/.ollama
 
 volumes:
-  ollama_data: {}
+  comfyui_output:
+
