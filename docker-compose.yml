@@ -1,7 +1,5 @@
 version: '3.8'
 
-# This docker-compose file is configured for local development.
-# It mounts your local Ollama and ComfyUI directories to use your existing models.
 services:
   backend:
     build:
@@ -10,12 +8,12 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Mount local scripts and workflows for live development
+      # This is the new line that fixes the error
+      - ./static:/app/static
       - ./scripts:/app/scripts
       - ./workflows:/app/workflows
-      # Mount the GB Studio project directory
-      - ./gbstudio_project:/app/gbstudio_project
-      # Mount the ComfyUI output directory to a shared volume
+      - ./project_files:/app/project_files
+      - ./index.html:/app/index.html
       - comfyui_output:/app/comfyui_output
     command: uvicorn scripts.main:app --host 0.0.0.0 --port 8000
     env_file:
@@ -23,24 +21,22 @@ services:
     depends_on:
       - comfyui
       - ollama
-    environment:
-      - COMFYUI_OUTPUT_PATH=/app/comfyui_output
 
   comfyui:
-    # This service uses a standard ComfyUI image and mounts your local ComfyUI directory.
-    # This gives it access to all your models, custom nodes, and other configurations.
-    image: gbstudio_hub-comfyui:latest
+    build:
+      context: ${HOME}/ComfyUI
+      dockerfile: Dockerfile
     command: python main.py --listen 0.0.0.0 ${COMFYUI_EXTRA_ARGS}
     ports:
       - "8188:8188"
     volumes:
       - ${HOME}/ComfyUI:/ComfyUI
       - comfyui_output:/ComfyUI/output
+      - ./workflows:/ComfyUI/workflows
     env_file:
       - .env
 
   ollama:
-    # This service uses the standard Ollama image and mounts your local models directory.
     image: ollama/ollama
     ports:
       - "11434:11434"

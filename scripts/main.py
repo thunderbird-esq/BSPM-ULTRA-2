@@ -5,6 +5,7 @@ import asyncio
 import aiohttp
 import requests
 import logging
+from datetime import datetime
 from fastapi import FastAPI, Request, WebSocket, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -18,9 +19,12 @@ from scripts.database import (
     get_db_connection, get_approved_assets
 )
 from scripts.project_integrator import move_asset, compile_gb_studio_project, launch_in_emulator
+from scripts.gbsproj_editor import add_asset_to_project
 
 # --- FastAPI App Setup ---
 app = FastAPI()
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.add_middleware(
     CORSMiddleware,
@@ -34,6 +38,7 @@ app.add_middleware(
 def on_startup():
     """Initialize the database when the application starts."""
     initialize_database()
+    logging.info("Pixel art workflow is available at /ComfyUI/workflows/workflow_pixel_art.json")
 
 app.mount("/output", StaticFiles(directory=settings.comfyui_output_path), name="output")
 
@@ -95,26 +100,49 @@ CONVERSATIONAL_AGENTS = {
 - **Format Response**: Your response MUST be a JSON object with one key: `sound_description` (a detailed description of the music or sound effect)."""
 }
 
-def get_conversation_history() -> str:
-    """Retrieves the last 20 conversation entries from the database."""
+def get_project_history() -> str:
+    """Retrieves a summary of recent conversations and assets from the database."""
+    history_parts = []
     conn = get_db_connection()
     if conn is None:
-        return "No history found."
+        return "No project history found."
+
     try:
-        rows = conn.execute("""
+        # Get last 10 conversations
+        conv_rows = conn.execute("""
             SELECT user_message, agent_response
             FROM conversations
             ORDER BY timestamp DESC
-            LIMIT 20
+            LIMIT 10
         """).fetchall()
-        history = "\n".join([
-            f"- User: {row['user_message']}\n  - Agent Response: {row['agent_response']}"
-            for row in reversed(rows)
-        ])
-        return history if history else "No conversation history found."
+        if conv_rows:
+            history_parts.append("== Recent Conversations ==")
+            conv_history = "\n".join([
+                f"- User: {row['user_message']}\n  - Agent: {row['agent_response']}"
+                for row in reversed(conv_rows)
+            ])
+            history_parts.append(conv_history)
+
+        # Get last 10 assets
+        asset_rows = conn.execute("""
+            SELECT task_name, asset_type, status, timestamp
+            FROM assets
+            ORDER BY timestamp DESC
+            LIMIT 10
+        """).fetchall()
+        if asset_rows:
+            history_parts.append("\n== Recent Assets ==")
+            asset_history = "\n".join([
+                f"- [{row['timestamp']}] {row['task_name']} (Type: {row['asset_type']}, Status: {row['status']})"
+                for row in asset_rows
+            ])
+            history_parts.append(asset_history)
+
+        return "\n".join(history_parts) if history_parts else "No project history found."
+
     except Exception as e:
-        print(f"Error getting conversation history: {e}")
-        return "Error retrieving history."
+        logging.error(f"Error getting project history: {e}")
+        return "Error retrieving project history."
     finally:
         if conn:
             conn.close()
@@ -125,19 +153,22 @@ async def call_ollama_agent(agent_name: str, task: str) -> dict:
     """Calls the Ollama agent and returns the parsed JSON response."""
     system_prompt = CONVERSATIONAL_AGENTS[agent_name]
     if agent_name == "PM":
-        history = get_conversation_history()
+        history = get_project_history()
         system_prompt = system_prompt.replace("{history}", history)
 
     full_prompt = f"{system_prompt}\n\nUSER TASK: {task}"
-    payload = {"model": "llama3", "prompt": full_prompt, "format": "json", "stream": False}
+    payload = {"model": "qwen3:1.7b", "prompt": full_prompt, "stream": False}
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(settings.ollama_api_url, json=payload, timeout=300) as response:
                 response.raise_for_status()
                 response_text = await response.text()
                 ollama_payload = json.loads(response_text)
-                model_response_str = ollama_payload.get("response", "{}")
-                return json.loads(model_response_str)
+                model_response_str = ollama_payload.get("response", "")
+                
+                # Return the full response for natural conversation
+                # Frontend can detect and handle JSON if present
+                return {"response": model_response_str, "type": "conversation"}
     except Exception as e:
         print(f"Error calling agent: {e}")
         return {"error": str(e)}
@@ -163,50 +194,63 @@ async def poll_comfyui_for_result(prompt_id: str):
             await asyncio.sleep(2)
     raise Exception("Polling for ComfyUI result timed out.")
 
-async def run_generation_task(final_prompt: str, task_name: str, asset_type: str, workflow_filename: str):
+async def run_generation_task(subject_prompt: str, task_name: str, asset_type: str, workflow_filename: str):
     """
-    Runs the full asset generation pipeline: logs creation, calls ComfyUI,
-    polls for results, and broadcasts updates via WebSocket.
+    Runs the full asset generation pipeline: logs creation, loads the correct
+    workflow, injects the dynamic subject and asset type into the prompt
+    template, calls ComfyUI, and broadcasts updates via WebSocket.
     """
-    await manager.broadcast({"event": "NEW", "name": task_name, "status": "QUEUED"})
+    await manager.broadcast({"event": "NEW", "name": task_name, "status": "QUEUED", "asset_type": asset_type})
     asset_id = -1
     try:
-        source_path = "placeholder"
+        # Log the asset creation attempt first
         asset_id = log_asset_creation(
             task_name=task_name,
             asset_type=asset_type,
-            final_prompt=final_prompt,
-            source_path=source_path
+            final_prompt=subject_prompt, # Log the subject prompt for context
+            source_path="placeholder"
         )
         if asset_id == -1:
             raise Exception("Failed to log asset creation in the database.")
 
-        await manager.broadcast({"event": "UPDATE", "name": task_name, "status": "GENERATING", "asset_id": asset_id})
+        await manager.broadcast({"event": "UPDATE", "name": task_name, "status": "GENERATING", "asset_id": asset_id, "asset_type": asset_type})
 
+        # Load the specified workflow
         workflow_path = os.path.join(os.path.dirname(settings.gb_project_path), "workflows", workflow_filename)
         with open(workflow_path, 'r') as f:
             workflow = json.load(f)
 
+        # Get the prompt template from the workflow
+        prompt_template = workflow["6"]["inputs"]["text"]
+
+        # Replace placeholders with dynamic content
+        final_prompt = prompt_template.replace("[SUBJECT]", subject_prompt).replace("[ASSET_TYPE]", asset_type)
+        
+        # Update the workflow with the final, combined prompt
         workflow["6"]["inputs"]["text"] = final_prompt
 
+        # Send the job to ComfyUI
         comfy_response = await call_comfyui({"prompt": workflow})
         prompt_id = comfy_response.get("prompt_id")
         if not prompt_id:
             raise Exception(f"ComfyUI did not return a prompt_id. Response: {comfy_response}")
 
+        # Poll for the result
         image_result = await poll_comfyui_for_result(prompt_id)
         update_asset_source_path(asset_id, image_result['filename'])
 
+        # Broadcast completion
         await manager.broadcast({
             "event": "UPDATE",
             "name": task_name,
             "status": "COMPLETED",
             "asset_id": asset_id,
+            "asset_type": asset_type,
             "image_url": f"/output/{image_result['filename']}"
         })
     except Exception as e:
-        print(f"Generation task failed: {e}")
-        await manager.broadcast({"event": "ERROR", "name": task_name, "asset_id": asset_id, "message": str(e)})
+        logging.error(f"Generation task failed for asset {asset_id}: {e}")
+        await manager.broadcast({"event": "ERROR", "name": task_name, "asset_id": asset_id, "message": str(e), "asset_type": asset_type})
 
 async def generate_writing_asset(prompt: str, task_name: str):
     """Saves generated text to a file and logs it to the database."""
@@ -309,9 +353,13 @@ async def chat_with_agent(agent_name: str, chat_message: ChatMessage, background
         workflow = response_data.get("workflow")
         asset_type = response_data.get("asset_type")
         prompt = response_data.get("prompt")
+        logging.info(f"Art agent response: workflow={workflow}, asset_type={asset_type}, prompt={prompt}")
         if workflow and asset_type and prompt:
             task_name = chat_message.message # Use the user's message as the task name
+            logging.info(f"Starting generation task: {task_name} with workflow {workflow}")
             background_tasks.add_task(run_generation_task, prompt, task_name, asset_type, workflow)
+        else:
+            logging.warning(f"Art agent missing required fields: workflow={workflow}, asset_type={asset_type}, prompt={prompt}")
     elif agent_name == "Writing":
         prompt = response_data.get("text_content")
         if prompt:
@@ -337,7 +385,8 @@ class AssetApproval(BaseModel):
 @app.post("/api/v1/approve_asset")
 async def approve_asset(approval: AssetApproval):
     """
-    Approves an asset, moving it to the project folder and updating its status.
+    Approves an asset, moving it to the project folder, adding it to the
+    .gbsproj file, and updating its status in the database.
     """
     asset = get_asset(approval.asset_id)
     if not asset:
@@ -349,24 +398,34 @@ async def approve_asset(approval: AssetApproval):
     source_file_path = os.path.join(settings.comfyui_output_path, asset['source_path'])
     gb_project_path = settings.gb_project_path
 
+    # Step 1: Move the asset to the correct project subfolder
     success = move_asset(
         source_path=source_file_path,
         asset_type=approval.asset_type,
         project_path=gb_project_path
     )
-
     if not success:
         raise HTTPException(status_code=500, detail=f"Failed to move asset file from {source_file_path}.")
 
+    # Step 2: Add the asset to the .gbsproj file
+    gbsproj_success = add_asset_to_project(
+        project_path=gb_project_path,
+        asset_filename=asset['source_path'],
+        asset_type=approval.asset_type,
+        task_name=asset['task_name']
+    )
+    if not gbsproj_success:
+        # Note: The file is moved but not in the project file. This is a partial failure.
+        # For now, we'll raise an error. A more robust system might try to revert the move.
+        raise HTTPException(status_code=500, detail="Failed to add asset to the .gbsproj file after moving.")
+
+    # Step 3: Update the asset's status in the database
     if not update_asset_status(approval.asset_id, "approved"):
-        raise HTTPException(status_code=500, detail="Failed to update asset status in database after moving file.")
+        # This is also a partial failure state.
+        raise HTTPException(status_code=500, detail="Failed to update asset status in database after project file update.")
 
-    return {"status": "success", "message": f"Asset {approval.asset_id} approved and moved."}
+    return {"status": "success", "message": f"Asset {approval.asset_id} approved and moved.", "task_name": asset['task_name']}
 
-
-from scripts.config import settings
-from scripts.database import get_approved_assets
-from scripts.project_integrator import move_asset, compile_gb_studio_project, launch_in_emulator
 
 @app.post("/api/v1/integrate_and_playtest")
 async def integrate_and_playtest(background_tasks: BackgroundTasks):

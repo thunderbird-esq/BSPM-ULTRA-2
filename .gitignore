@@ -38,3 +38,4 @@ project_memory.db
 
 # Editor Swap Files
 *.swp
+\n# Archive for old files\narchive/

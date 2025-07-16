@@ -3,27 +3,15 @@
     "inputs": {
       "seed": 123456789,
       "control_after_generate": "randomize",
-      "steps": 20,
-      "cfg": 7,
-      "sampler_name": "euler",
-      "scheduler": "normal",
+      "steps": 25,
+      "cfg": 8,
+      "sampler_name": "dpmpp_2m",
+      "scheduler": "karras",
       "denoise": 1,
-      "model": [
-        "10",
-        0
-      ],
-      "positive": [
-        "6",
-        0
-      ],
-      "negative": [
-        "7",
-        0
-      ],
-      "latent_image": [
-        "5",
-        0
-      ]
+      "model": ["10", 0],
+      "positive": ["6", 0],
+      "negative": ["7", 0],
+      "latent_image": ["5", 0]
     },
     "class_type": "KSampler"
   },
@@ -35,52 +23,37 @@
   },
   "5": {
     "inputs": {
-      "width": 128,
-      "height": 16,
+      "width": 160,
+      "height": 144,
       "batch_size": 1
     },
     "class_type": "EmptyLatentImage"
   },
   "6": {
     "inputs": {
-      "text": "((PROMPT_PLACEHOLDER))",
-      "clip": [
-        "10",
-        1
-      ]
+      "text": "pixel art, [ASSET_TYPE], [SUBJECT], 1-bit, monochrome, sharp pixels, gameboy screen, masterpiece, best quality, flat background",
+      "clip": ["10", 1]
     },
     "class_type": "CLIPTextEncode"
   },
   "7": {
     "inputs": {
-      "text": "photograph, realistic, 3d, noisy, blurry, watermark, text, signature, jpeg artifacts, high-resolution, detailed background, inconsistent colors, deformed, mutated, ugly, low quality",
-      "clip": [
-        "10",
-        1
-      ]
+      "text": "(worst quality, low quality, normal quality:2), (blurry:1.5), (photograph, photo, realistic, render, 3d), (CGI, VFX), (watermark, text, signature, logo), (gradient, smooth, soft), anti-aliasing, jpeg artifacts, deformed, mutated, ugly",
+      "clip": ["10", 1]
     },
     "class_type": "CLIPTextEncode"
   },
   "8": {
     "inputs": {
-      "samples": [
-        "3",
-        0
-      ],
-      "vae": [
-        "4",
-        2
-      ]
+      "samples": ["3", 0],
+      "vae": ["4", 2]
     },
     "class_type": "VAEDecode"
   },
   "9": {
     "inputs": {
-      "filename_prefix": "gbc_sprite_sheet_final",
-      "images": [
-        "12",
-        0
-      ]
+      "filename_prefix": "pixel_art_output",
+      "images": ["8", 0]
     },
     "class_type": "SaveImage"
   },
@@ -89,46 +62,9 @@
       "lora_name": "pixelart.safetensors",
       "strength_model": 1,
       "strength_clip": 1,
-      "model": [
-        "4",
-        0
-      ],
-      "clip": [
-        "4",
-        1
-      ]
+      "model": ["4", 0],
+      "clip": ["4", 1]
     },
     "class_type": "LoraLoader"
-  },
-  "11": {
-    "inputs": {
-      "colors": 16,
-      "dither": "none",
-      "image": [
-        "13",
-        0
-      ]
-    },
-    "class_type": "ImageQuantize"
-  },
-  "12": {
-    "inputs": {
-      "scale_by": 4,
-      "upscale_method": "nearest-exact",
-      "image": [
-        "11",
-        0
-      ]
-    },
-    "class_type": "ImageScaleBy"
-  },
-  "13": {
-    "inputs": {
-      "images": [
-        "8",
-        0
-      ]
-    },
-    "class_type": "PreviewImage"
   }
 }

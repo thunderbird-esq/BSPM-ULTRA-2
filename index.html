@@ -3,221 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GB Studio Automation Hub</title>
-    <style>
-        body { font-family: sans-serif; display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 1rem; padding: 1rem; }
-        aside, main { border: 1px solid #ccc; padding: 1rem; }
-        #chat-log { height: 400px; overflow-y: scroll; border: 1px solid #eee; padding: 0.5rem; margin-bottom: 1rem; }
-        .message { margin-bottom: 0.5rem; padding: 0.5rem; border-radius: 5px; }
-        .user-message { background-color: #e0f7fa; }
-        .agent-message { background-color: #f1f8e9; }
-        #asset-showcase { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 1rem; }
-        .asset { border: 1px solid #ddd; padding: 0.5rem; }
-        .asset img { max-width: 100%; }
-    </style>
+    <title>GBStudio Command Deck</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
 <body>
-    <aside>
-        <h2>Departments</h2>
-        <div id="departments">
-            <button data-agent="PM">Project Manager</button>
-            <button data-agent="Art">Art</button>
-            <button data-agent="Writing">Writing</button>
-            <button data-agent="Code">Code</button>
-            <button data-agent="QA">QA</button>
-            <button data-agent="Sound">Sound</button>
-        </div>
-        <hr>
-        <h2>Studio Controls</h2>
-        <button id="playtest-btn">Integrate & Playtest</button>
-    </aside>
-
-    <main>
-        <h2 id="current-agent-name">Project Manager</h2>
-        <div id="chat-log"></div>
-        <form id="chat-form">
-            <input type="text" id="message-input" placeholder="Enter your command..." style="width: 80%;">
-            <button type="submit">Send</button>
-        </form>
-    </main>
-
-    <aside>
-        <h2>Asset Showcase</h2>
-        <div id="asset-showcase"></div>
-        <hr>
-        <h2>Task Status</h2>
-        <ul id="task-status"></ul>
-    </aside>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const departments = document.getElementById('departments');
-            const currentAgentName = document.getElementById('current-agent-name');
-            const chatLog = document.getElementById('chat-log');
-            const chatForm = document.getElementById('chat-form');
-            const messageInput = document.getElementById('message-input');
-            const playtestBtn = document.getElementById('playtest-btn');
-            const assetShowcase = document.getElementById('asset-showcase');
-            const taskStatusList = document.getElementById('task-status');
-
-            let selectedAgent = 'PM';
-
-            // --- WebSocket Connection ---
-            const socket = new WebSocket(`ws://${window.location.host}/ws`);
-
-            socket.onopen = () => {
-                console.log("WebSocket connection established.");
-                const statusItem = document.createElement('li');
-                statusItem.textContent = "Real-time connection active.";
-                statusItem.style.color = "green";
-                taskStatusList.appendChild(statusItem);
-            };
-
-            socket.onclose = () => {
-                console.log("WebSocket connection closed.");
-                const statusItem = document.createElement('li');
-                statusItem.textContent = "Real-time connection lost.";
-                statusItem.style.color = "red";
-                taskStatusList.appendChild(statusItem);
-            };
-
-            socket.onerror = (error) => {
-                console.error("WebSocket Error:", error);
-                const statusItem = document.createElement('li');
-                statusItem.textContent = "Real-time connection error.";
-                statusItem.style.color = "red";
-                taskStatusList.appendChild(statusItem);
-            };
-
-            socket.onmessage = function(event) {
-                const data = JSON.parse(event.data);
-                const { event: eventType, name, status, asset_id, image_url, message, asset_type } = data;
-
-                // Find or create the task status item
-                let taskItem = document.getElementById(`task-${asset_id}`);
-                if (!taskItem && asset_id) {
-                    taskItem = document.createElement('li');
-                    taskItem.id = `task-${asset_id}`;
-                    taskStatusList.prepend(taskItem); // Add new tasks to the top
-                }
-
-                if (!taskItem) return; // Don't process if there's no item to update
-
-                // Update UI based on event type
-                switch (eventType) {
-                    case 'NEW':
-                        taskItem.innerHTML = `<strong>${name} (ID: ${asset_id}):</strong> QUEUED`;
-                        break;
-
-                    case 'UPDATE':
-                        taskItem.innerHTML = `<strong>${name} (ID: ${asset_id}):</strong> ${status}...`;
-                        if (status === 'COMPLETED' && image_url) {
-                            taskItem.innerHTML = `<strong>${name} (ID: ${asset_id}):</strong> COMPLETED`;
-                            
-                            // Create asset display in the showcase
-                            const assetDiv = document.createElement('div');
-                            assetDiv.className = 'asset';
-                            assetDiv.id = `asset-card-${asset_id}`;
-                            assetDiv.innerHTML = `
-                                <p>${name}</p>
-                                <img src="${image_url}" alt="${name}">
-                                <button onclick="window.approveAsset(${asset_id}, '${asset_type || 'sprite'}')">Approve</button>
-                            `;
-                            assetShowcase.appendChild(assetDiv);
-                        }
-                        break;
-                    
-                    case 'ERROR':
-                        taskItem.innerHTML = `<strong>${name} (ID: ${asset_id}):</strong> <span style="color: red;">ERROR</span> - ${message}`;
-                        break;
-                }
-            };
-
-            // --- Event Listeners ---
-            departments.addEventListener('click', (e) => {
-                if (e.target.tagName === 'BUTTON') {
-                    selectedAgent = e.target.dataset.agent;
-                    currentAgentName.textContent = e.target.textContent;
-                    messageInput.placeholder = `Enter your command for ${e.target.textContent}...`;
-                }
-            });
-
-            chatForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const message = messageInput.value.trim();
-                if (!message) return;
-
-                appendMessage('user', message);
-                messageInput.value = '';
-
-                try {
-                    const response = await fetch(`/api/v1/chat/${selectedAgent}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ message })
-                    });
-                    if (!response.ok) throw new Error(`Server responded with status ${response.status}`);
-                    const data = await response.json();
-                    appendMessage('agent', JSON.stringify(data, null, 2));
-                } catch (error) {
-                    appendMessage('agent', `Error: ${error.message}`);
-                }
-            });
-
-            playtestBtn.addEventListener('click', async () => {
-                playtestBtn.textContent = 'Integrating...';
-                playtestBtn.disabled = true;
-                try {
-                    const response = await fetch('/api/v1/integrate_and_playtest', { method: 'POST' });
-                    const data = await response.json();
-                    alert(data.message || "Integration request sent.");
-                } catch (error) {
-                    alert(`Error: ${error.message}`);
-                } finally {
-                    playtestBtn.textContent = 'Integrate & Playtest';
-                    playtestBtn.disabled = false;
-                }
-            });
-
-            // --- Helper Functions ---
-            function appendMessage(sender, text) {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = `message ${sender}-message`;
-                // Use <pre> for JSON to preserve formatting
-                if (sender === 'agent') {
-                    const pre = document.createElement('pre');
-                    pre.textContent = text;
-                    messageDiv.appendChild(pre);
-                } else {
-                    messageDiv.textContent = text;
-                }
-                chatLog.appendChild(messageDiv);
-                chatLog.scrollTop = chatLog.scrollHeight;
-            }
-
-            window.approveAsset = async function(asset_id, asset_type) {
-                const button = document.querySelector(`#asset-card-${asset_id} button`);
-                button.textContent = 'Approving...';
-                button.disabled = true;
-                try {
-                    const response = await fetch('/api/v1/approve_asset', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ asset_id, asset_type })
-                    });
-                    const data = await response.json();
-                    if (!response.ok) throw new Error(data.detail || "Approval failed");
-                    alert(data.message);
-                    button.textContent = 'Approved';
-                    button.style.backgroundColor = 'green';
-                    button.style.color = 'white';
-                } catch (error) {
-                    alert(`Error: ${error.message}`);
-                    button.textContent = 'Approve';
-                    button.disabled = false;
-                }
-            }
-        });
-    </script>
+    <div class="scanlines"></div>
+    <div class="gameboy-frame"></div>
+    
+    <div class="grid">
+        <!-- Department Sidebar -->
+        <aside class="pixel-border">
+            <h2 class="terminal-text">DEPARTMENTS</h2>
+            <ul id="department-list">
+                <li><a href="#" class="department-link active" data-agent="PM"><span class="status-indicator status-active"></span>Project Manager</a></li>
+                <li><a href="#" class="department-link" data-agent="Art"><span class="status-indicator status-idle"></span>Art Department</a></li>
+                <li><a href="#" class="department-link" data-agent="Writing"><span class="status-indicator status-idle"></span>Writing Dept.</a></li>
+                <li><a href="#" class="department-link" data-agent="Code"><span class="status-indicator status-idle"></span>Code Department</a></li>
+                <li><a href="#" class="department-link" data-agent="QA"><span class="status-indicator status-idle"></span>QA Department</a></li>
+                <li><a href="#" class="department-link" data-agent="Sound"><span class="status-indicator status-idle"></span>Sound Department</a></li>
+            </ul>
+            <div id="system-status-container" class="mt-4">
+                <h3 class="terminal-text">SYSTEM STATUS</h3>
+                <div id="websocket-status" class="task-item">Connecting...</div>
+            </div>
+        </aside>
+        
+        <!-- Main Interaction Panel -->
+        <main class="glow-box">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="current-agent-name">Project Manager</h2>
+                <div id="connection-status" class="terminal-text">OFFLINE</div>
+            </div>
+            <div id="chat-log">
+                <!-- Messages will be dynamically inserted here -->
+            </div>
+            <form id="chat-form">
+                <textarea id="message-input" placeholder="Enter command for Project Manager..."></textarea>
+                <button type="submit" id="send-button">SEND</button>
+            </form>
+        </main>
+        
+        <!-- Controls & Status -->
+        <aside class="pixel-border">
+            <h2 class="terminal-text">STUDIO CONTROLS</h2>
+            <button id="playtest-button">INTEGRATE & PLAYTEST</button>
+            <div class="mt-4">
+                <h3 class="terminal-text">ACTIVE TASKS</h3>
+                <div id="active-tasks-list">
+                    <!-- Active tasks will be dynamically inserted here -->
+                </div>
+            </div>
+        </aside>
+    </div>
+    
+    <script src="/static/js/app.js"></script>
 </body>
 </html>

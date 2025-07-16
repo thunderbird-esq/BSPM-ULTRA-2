@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GBStudio Automation Hub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #1a1a1a; --window-bg: #c0c0c0; --window-border: #000000;
+            --text-color: #000000; --highlight-color: #000084; --highlight-text: #ffffff;
+            --button-bg: #c0c0c0; --button-shadow: #808080; --button-highlight: #ffffff;
+            --console-bg: #000000; --console-text: #00ff00; --font-family: 'Press Start 2P', cursive;
+            --color-user: #0074d9; --color-pm: #2ecc40; --color-art: #f012be; --color-system: #aaaaaa;
+        }
+        body { background-color: var(--bg-color); color: var(--text-color); font-family: var(--font-family); font-size: 10px; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 16px; box-sizing: border-box; }
+        .main-window { background-color: var(--window-bg); border: 2px solid var(--window-border); box-shadow: 4px 4px 0 0 var(--window-border), inset 2px 2px 0 0 var(--button-highlight), inset -2px -2px 0 0 var(--button-shadow); padding: 2px; width: 100%; max-width: 1200px; height: 90vh; max-height: 800px; display: flex; flex-direction: column; }
+        .title-bar { background-color: var(--highlight-color); color: var(--highlight-text); padding: 4px 6px; font-weight: bold; text-shadow: 1px 1px 0px var(--window-border); }
+        .content-area { display: flex; flex-grow: 1; padding: 10px; gap: 10px; overflow: hidden; }
+        .left-panel { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 10px; }
+        .dashboard-box { border: 2px solid var(--button-shadow); box-shadow: inset 2px 2px 0 0 var(--button-highlight); padding: 10px; }
+        .dashboard-box legend { font-weight: bold; padding: 0 5px; margin-left: 5px; }
+        .status-item { display: flex; justify-content: space-between; align-items: center; }
+        .status.working { color: #ffdc00; } .status.done { color: #2ecc40; } .status.error { color: #ff4136; }
+        .right-panel { flex: 3; display: flex; flex-direction: column; background: var(--button-shadow); border: 2px solid var(--window-border); box-shadow: inset 2px 2px 0 0 var(--window-border); }
+        .chat-window { background-color: var(--console-bg); padding: 10px; flex-grow: 1; overflow-y: auto; color: var(--console-text); }
+        .message { margin-bottom: 12px; } .message-header { margin-bottom: 4px; }
+        .message-sender { padding: 2px 4px; color: var(--window-border); display: inline-block; }
+        .message-sender[data-sender="User"] { background-color: var(--color-user); color: white; }
+        .message-sender[data-sender="PM"] { background-color: var(--color-pm); }
+        .message-sender[data-sender="Art"] { background-color: var(--color-art); }
+        .message-sender[data-sender="System"] { background-color: var(--color-system); }
+        .message-content { margin-left: 10px; line-height: 1.6; }
+        .message-content p { margin: 0 0 8px; } .message-content p:last-child { margin-bottom: 0; } 
+        .message-content pre { background-color: #222; color: #9e9e9e; padding: 8px; border-radius: 3px; white-space: pre-wrap; word-break: break-all; font-size: 9px; margin-top: 5px; }
+        .input-area { display: flex; padding: 10px; gap: 10px; border-top: 2px solid var(--button-shadow); }
+        .pixel-input { background-color: white; border: 2px solid var(--window-border); box-shadow: inset 2px 2px 0 0 var(--button-shadow); padding: 8px; font-family: var(--font-family); font-size: 10px; width: 100%; flex-grow: 1; }
+        .pixel-button { background-color: var(--button-bg); border: 2px solid var(--window-border); padding: 8px 12px; font-family: var(--font-family); font-size: 10px; cursor: pointer; box-shadow: 2px 2px 0 0 var(--window-border); }
+        .pixel-button:active { box-shadow: inset 2px 2px 0 0 var(--window-border); transform: translate(2px, 2px); }
+        .generated-image { max-width: 256px; border: 2px solid var(--console-text); margin-top: 10px; image-rendering: pixelated; }
+        .error-text { color: #ff4136; }
+    </style>
+</head>
+<body>
+    <div class="main-window">
+        <div class="title-bar">GBStudio Automation Hub</div>
+        <div class="content-area">
+            <div class="left-panel">
+                <fieldset class="dashboard-box">
+                    <legend>PROJECT DASHBOARD</legend>
+                    <div id="dashboard-content"></div>
+                </fieldset>
+            </div>
+            <div class="right-panel">
+                <div class="chat-window" id="chat-window"></div>
+            </div>
+        </div>
+        <div class="input-area">
+            <input type="text" id="user-input" class="pixel-input" placeholder="Talk to the Project Manager...">
+            <button id="send-btn" class="pixel-button">SEND</button>
+        </div>
+    </div>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const chatWindow = document.getElementById('chat-window');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const dashboard = document.getElementById('dashboard-content');
+        const playtestBtn = document.createElement('button');
+        
+        playtestBtn.textContent = "Integrate & Playtest";
+        playtestBtn.className = "pixel-button";
+        dashboard.parentNode.appendChild(playtestBtn);
+
+        let currentAgent = 'PM'; // Always start with the Project Manager
+
+        function addMessage(sender, content, isHtml = false) {
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message';
+            let contentHtml = isHtml ? content : `<p>${content.replace(/\n/g, '<br>')}</p>`;
+            
+            messageEl.innerHTML = `
+                <div class="message-header">
+                    <span class="message-sender" data-sender="${sender}">${sender}</span>
+                </div>
+                <div class="message-content">
+                    ${contentHtml}
+                </div>
+            `;
+            chatWindow.appendChild(messageEl);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+            return messageEl;
+        }
+
+        // --- Real-time Task Updates via WebSocket ---
+        const socket = new WebSocket(`ws://${window.location.host}/ws`);
+        
+        socket.onopen = () => {
+            console.log("WebSocket Connected");
+            addMessage('System', 'Real-time connection established.');
+        };
+
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            let taskEl = document.getElementById(`task-${data.asset_id}`);
+
+            if (!taskEl && data.asset_id) {
+                taskEl = document.createElement('div');
+                taskEl.id = `task-${data.asset_id}`;
+                taskEl.className = 'status-item';
+                dashboard.appendChild(taskEl);
+            }
+            
+            if (taskEl) {
+                let content = `<strong>${data.name || 'Task'} (ID: ${data.asset_id})</strong>: ${data.status}`;
+                if (data.event === 'UPDATE' && data.status === 'COMPLETED') {
+                    content += `<br><img src="${data.image_url}" class="generated-image">`;
+                    content += `<br><button class="pixel-button" onclick="approveAsset(${data.asset_id}, '${data.asset_type || 'sprite'}')">Approve</button>`;
+                } else if (data.event === 'ERROR') {
+                    content += `<br><span class="error-text">${data.message}</span>`;
+                }
+                taskEl.innerHTML = content;
+            }
+        };
+
+        socket.onclose = () => {
+            addMessage('System', 'Real-time connection lost.', true);
+        };
+
+        // --- Main User Interaction Logic ---
+        async function handleUserInput(userMessageText) {
+            if (!userMessageText.trim()) return;
+
+            addMessage('User', userMessageText);
+            const processingMessage = addMessage('System', 'Thinking...');
+            userInput.value = '';
+            sendBtn.disabled = true;
+
+            try {
+                // All user input goes to the PM agent first.
+                const response = await fetch(`/api/v1/chat/PM`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ message: userMessageText })
+                });
+
+                chatWindow.removeChild(processingMessage);
+
+                if (!response.ok) {
+                    throw new Error(`Server Error: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                
+                // The PM delegates a task. We display the plan.
+                if (result.department && result.task_description) {
+                    let pmResponseHtml = `
+                        <p>Delegating task to <strong>${result.department}</strong>.</p>
+                        <p>Task: "${result.task_description}"</p>
+                        <button class="pixel-button" onclick="delegateTask('${result.department}', '${result.task_description}')">Confirm & Proceed</button>
+                    `;
+                    addMessage('PM', pmResponseHtml, true);
+                } else {
+                    addMessage('PM', JSON.stringify(result, null, 2), true);
+                }
+
+            } catch (error) {
+                if (document.body.contains(processingMessage)) {
+                    chatWindow.removeChild(processingMessage);
+                }
+                addMessage('System', `<b>Critical Error:</b> ${error.message}`, true);
+            } finally {
+                sendBtn.disabled = false;
+                userInput.focus();
+            }
+        }
+
+        // --- Delegating Tasks to Other Agents ---
+        window.delegateTask = async (agent, task) => {
+            addMessage('System', `Sending task to ${agent}...`);
+            try {
+                const response = await fetch(`/api/v1/chat/${agent}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: task })
+                });
+                if (!response.ok) throw new Error(`Agent ${agent} failed.`);
+                
+                const result = await response.json();
+                let agentResponseHtml = `<p>Response from ${agent}:</p><pre>${JSON.stringify(result, null, 2)}</pre>`;
+                addMessage(agent, agentResponseHtml, true);
+                addMessage('System', `${agent} has received the task. Monitor the dashboard for progress.`);
+
+            } catch (error) {
+                addMessage('System', `<b>Error delegating to ${agent}:</b> ${error.message}`, true);
+            }
+        };
+
+        // --- Asset Approval ---
+        window.approveAsset = async (assetId, assetType) => {
+            const button = event.target;
+            button.textContent = "Approving...";
+            button.disabled = true;
+            try {
+                const response = await fetch('/api/v1/approve_asset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ asset_id: assetId, asset_type: assetType })
+                });
+                if (!response.ok) throw new Error('Approval failed.');
+                button.textContent = "Approved!";
+                button.style.backgroundColor = "#2ecc40";
+            } catch (error) {
+                button.textContent = "Approval Error";
+                button.style.backgroundColor = "#ff4136";
+            }
+        };
+        
+        // --- Playtest Integration ---
+        playtestBtn.addEventListener('click', async () => {
+            playtestBtn.textContent = "Integrating...";
+            playtestBtn.disabled = true;
+            try {
+                const response = await fetch('/api/v1/integrate_and_playtest', { method: 'POST' });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message || 'Integration failed');
+                addMessage('System', `Integration successful! Moved assets: ${result.moved_assets.map(a => a.name).join(', ')}. Emulator launched.`, true);
+            } catch (error) {
+                addMessage('System', `<b>Integration Error:</b> ${error.message}`, true);
+            } finally {
+                playtestBtn.textContent = "Integrate & Playtest";
+                playtestBtn.disabled = false;
+            }
+        });
+
+        // --- Initial Setup ---
+        sendBtn.addEventListener('click', () => handleUserInput(userInput.value));
+        userInput.addEventListener('keyup', (e) => { if (e.key === 'Enter') handleUserInput(userInput.value); });
+        addMessage('System', 'GBStudio Automation Hub V4 Initialized. All commands start with the Project Manager.');
+    });
+</script>
+</body>
+</html>
