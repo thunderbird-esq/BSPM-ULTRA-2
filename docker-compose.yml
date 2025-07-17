@@ -8,7 +8,6 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # This is the new line that fixes the error
       - ./static:/app/static
       - ./scripts:/app/scripts
       - ./workflows:/app/workflows
@@ -16,25 +15,14 @@ services:
       - ./index.html:/app/index.html
       - comfyui_output:/app/comfyui_output
     command: uvicorn scripts.main:app --host 0.0.0.0 --port 8000
+    environment:
+      - COMFYUI_URL=http://host.docker.internal:8188
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file:
       - .env
     depends_on:
-      - comfyui
       - ollama
-
-  comfyui:
-    build:
-      context: ${HOME}/ComfyUI
-      dockerfile: Dockerfile
-    command: python main.py --listen 0.0.0.0 ${COMFYUI_EXTRA_ARGS}
-    ports:
-      - "8188:8188"
-    volumes:
-      - ${HOME}/ComfyUI:/ComfyUI
-      - comfyui_output:/ComfyUI/output
-      - ./workflows:/ComfyUI/workflows
-    env_file:
-      - .env
 
   ollama:
     image: ollama/ollama

@@ -1,0 +1,61 @@
+<!-- Enhanced Controls & Status Panel with Strategic AI Integration -->
+<aside class="pixel-border">
+    <h2 class="terminal-text">STUDIO CONTROLS</h2>
+    <button id="playtest-button">INTEGRATE & PLAYTEST</button>
+    
+    <!-- Strategic AI Controls -->
+    <div class="strategic-controls mt-4">
+        <h3 class="terminal-text">STRATEGIC AI</h3>
+        <div class="strategic-buttons">
+            <button id="escalate-to-claude" class="strategic-btn" data-agent="ClaudeCode">
+                🔧 CLAUDE CODE
+                <small>System Operations</small>
+            </button>
+            <button id="escalate-to-gemini" class="strategic-btn" data-agent="Gemini">
+                🧠 GEMINI PRO
+                <small>Strategic Analysis</small>
+            </button>
+        </div>
+        
+        <!-- Hybrid Collaboration Toggle -->
+        <div class="collaboration-mode mt-2">
+            <label class="terminal-text">
+                <input type="checkbox" id="hybrid-mode"> Hybrid Collaboration
+            </label>
+            <small>Cloud AI supervises local agents</small>
+        </div>
+    </div>
+
+    <!-- Real-Time Tool Operations -->
+    <div class="tool-operations mt-4">
+        <h3 class="terminal-text">TOOL OPERATIONS</h3>
+        <div id="active-tool-operations">
+            <!-- Real-time tool use will be shown here -->
+        </div>
+    </div>
+
+    <!-- Active Tasks with AI Tier Info -->
+    <div class="mt-4">
+        <h3 class="terminal-text">ACTIVE TASKS</h3>
+        <div id="active-tasks-list">
+            <!-- Enhanced task cards with AI tier information -->
+        </div>
+    </div>
+
+    <!-- System Performance -->
+    <div class="system-metrics mt-4">
+        <h3 class="terminal-text">PERFORMANCE</h3>
+        <div class="metric-row">
+            <span>Local Agents:</span>
+            <span id="local-response-time" class="metric-value">~3s</span>
+        </div>
+        <div class="metric-row">
+            <span>Cloud Strategic:</span>
+            <span id="cloud-response-time" class="metric-value">~15s</span>
+        </div>
+        <div class="metric-row">
+            <span>Tool Operations:</span>
+            <span id="tool-operation-count" class="metric-value">0 active</span>
+        </div>
+    </div>
+</aside>

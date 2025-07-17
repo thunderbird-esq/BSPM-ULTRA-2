@@ -1,0 +1,77 @@
+<!-- Enhanced Main Interaction Panel -->
+<main class="glow-box">
+    <div class="flex justify-between items-center mb-4">
+        <div class="agent-info">
+            <h2 id="current-agent-name">Project Manager</h2>
+            <div class="agent-tier-badge" id="current-agent-tier">LOCAL AGENT</div>
+        </div>
+        <div class="connection-status-panel">
+            <div id="connection-status" class="terminal-text">OFFLINE</div>
+            <div id="collaboration-mode-status" class="terminal-text text-sm">Standard Mode</div>
+        </div>
+    </div>
+
+    <!-- Multi-Tier Chat Log -->
+    <div id="chat-log" class="enhanced-chat-log">
+        <!-- Messages will include AI tier information and tool operations -->
+    </div>
+
+    <!-- Strategic AI Collaboration Bar -->
+    <div id="collaboration-bar" class="collaboration-panel" style="display: none;">
+        <div class="collaboration-status">
+            <span class="terminal-text">🤝 Collaborative Mode Active</span>
+            <div class="active-collaborators">
+                <span id="local-agent-status">Local: PM</span>
+                <span id="cloud-agent-status">Cloud: Standby</span>
+            </div>
+        </div>
+        <div class="collaboration-controls">
+            <button id="request-cloud-input" class="collab-btn">Request Cloud Input</button>
+            <button id="escalate-conversation" class="collab-btn">Escalate to Strategic</button>
+        </div>
+    </div>
+
+    <!-- Tool Operations Feedback -->
+    <div id="tool-feedback-panel" class="tool-panel" style="display: none;">
+        <div class="tool-status">
+            <span class="terminal-text">🔧 Tool Operations Active</span>
+            <div id="current-tool-operation">
+                <!-- Real-time tool operation feedback -->
+            </div>
+        </div>
+        <div class="tool-progress">
+            <div class="progress-bar">
+                <div id="tool-progress-fill" class="progress-fill"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Enhanced Input Form -->
+    <form id="chat-form" class="enhanced-form">
+        <div class="input-container">
+            <textarea id="message-input" placeholder="Enter command for Project Manager..."></textarea>
+            <div class="input-controls">
+                <div class="priority-selector">
+                    <label class="terminal-text">
+                        <input type="radio" name="priority" value="local" checked> Local (Fast)
+                    </label>
+                    <label class="terminal-text">
+                        <input type="radio" name="priority" value="strategic"> Strategic (Deep)
+                    </label>
+                    <label class="terminal-text">
+                        <input type="radio" name="priority" value="hybrid"> Hybrid (Best)
+                    </label>
+                </div>
+                <button type="submit" id="send-button">SEND</button>
+            </div>
+        </div>
+    </form>
+
+    <!-- Quick Action Buttons -->
+    <div class="quick-actions mt-2">
+        <button class="quick-btn" data-action="system-status">System Status</button>
+        <button class="quick-btn" data-action="performance-report">Performance Report</button>
+        <button class="quick-btn" data-action="strategic-analysis">Strategic Analysis</button>
+        <button class="quick-btn" data-action="tool-operations">Tool Operations</button>
+    </div>
+</main>

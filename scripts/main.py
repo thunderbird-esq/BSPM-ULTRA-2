@@ -5,6 +5,7 @@ import asyncio
 import aiohttp
 import requests
 import logging
+import re
 from datetime import datetime
 from fastapi import FastAPI, Request, WebSocket, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel
@@ -28,10 +29,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],  # Only allow local origins
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["GET", "POST", "PUT", "DELETE"],  # Specific methods only
+    allow_headers=["*"],  # Headers can remain permissive for development
 )
 
 @app.on_event("startup")
@@ -58,11 +59,36 @@ manager = ConnectionManager()
 
 # --- Agent Prompts ---
 CONVERSATIONAL_AGENTS = {
-    "PM": """You are a master Project Manager AI for a Game Boy game. Your primary role is to be the central hub for all development requests.
-- **Analyze Requests**: Carefully analyze the user's request and the provided project history.
-- **Delegate Tasks**: Based on your analysis, delegate the task to the most appropriate department: `Art`, `Writing`, `Code`, `QA`, or `Sound`.
-- **Maintain Context**: Use the project history to understand the current state of the game and avoid redundant or conflicting tasks.
-- **Format Response**: Your response MUST be a JSON object with two keys: `department` (the name of the target department) and `task_description` (a clear, concise, and actionable task for that department).
+    "PM": """You are a master Project Manager AI for a Game Boy game. Your role is to analyze requests, create proper department prompts, and present them for user approval.
+
+**Your Process:**
+1. **Analyze** the user's request using project history
+2. **Create** the exact prompt that should be sent to the appropriate department
+3. **Present** this prompt to the user for approval before sending
+
+**Department Selection:**
+- **Art**: Visual assets (sprites, backgrounds, UI elements)
+- **Writing**: Text content (dialogue, descriptions, lore)
+- **Code**: Game mechanics and logic
+- **QA**: Bug reports and testing
+- **Sound**: Music and sound effects
+
+**Response Format:**
+Always respond conversationally, then provide a JSON object with:
+- `department`: Target department name
+- `ready_prompt`: The exact prompt ready to send to that department
+- `approval_needed`: Always true (user must approve before sending)
+
+**Example Response:**
+"I'll analyze your request for a Jason Voorhees sprite sheet. This needs to go to the Art Department. Here's the exact prompt I'll send them:
+
+{{
+  "department": "Art",
+  "ready_prompt": "Create a four-frame sprite sheet for Jason Voorhees from Friday the 13th showing his idle animation. Each frame should be 16x16 pixels in Game Boy 1-bit pixel art style.",
+  "approval_needed": true
+}}
+
+Please review this prompt and let me know if you'd like me to send it to the Art Department, or if you'd like any changes."
 
 **Project History:**
 {history}
@@ -158,6 +184,7 @@ async def call_ollama_agent(agent_name: str, task: str) -> dict:
 
     full_prompt = f"{system_prompt}\n\nUSER TASK: {task}"
     payload = {"model": "qwen3:1.7b", "prompt": full_prompt, "stream": False}
+    response_text = ""
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(settings.ollama_api_url, json=payload, timeout=300) as response:
@@ -169,9 +196,73 @@ async def call_ollama_agent(agent_name: str, task: str) -> dict:
                 # Return the full response for natural conversation
                 # Frontend can detect and handle JSON if present
                 return {"response": model_response_str, "type": "conversation"}
+    except aiohttp.ClientConnectorError as e:
+        logging.error(f"Ollama Connection Error: {e}")
+        return {"error": "Could not connect to the Ollama service."}
+    except aiohttp.ClientResponseError as e:
+        logging.error(f"Ollama API Error: Status {e.status}, Message: {e.message}")
+        return {"error": f"Ollama API returned an error: {e.message}"}
+    except json.JSONDecodeError as e:
+        logging.error(f"Ollama response is not valid JSON: {response_text}")
+        return {"error": "Failed to parse the response from the Ollama agent."}
+    except asyncio.TimeoutError:
+        logging.error("Ollama request timed out")
+        return {"error": "Request to Ollama service timed out."}
     except Exception as e:
-        print(f"Error calling agent: {e}")
-        return {"error": str(e)}
+        logging.error(f"Unexpected error calling agent: {e}")
+        return {"error": f"Unexpected error: {str(e)}"}
+
+async def validate_comfyui_models(workflow: dict) -> tuple[bool, str]:
+    """
+    Validates that all models referenced in the workflow are available in ComfyUI.
+    
+    Args:
+        workflow: The ComfyUI workflow dictionary
+        
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    try:
+        async with aiohttp.ClientSession() as session:
+            # Get available models from ComfyUI
+            async with session.get(f"{settings.comfyui_api_url}/object_info") as response:
+                if response.status != 200:
+                    return False, f"Failed to get ComfyUI model info: {response.status}"
+                
+                object_info = await response.json()
+                
+                # Extract available models
+                available_checkpoints = set()
+                available_loras = set()
+                
+                if "CheckpointLoaderSimple" in object_info:
+                    checkpoint_info = object_info["CheckpointLoaderSimple"]
+                    if "input" in checkpoint_info and "required" in checkpoint_info["input"]:
+                        if "ckpt_name" in checkpoint_info["input"]["required"]:
+                            available_checkpoints = set(checkpoint_info["input"]["required"]["ckpt_name"][0])
+                
+                if "LoraLoader" in object_info:
+                    lora_info = object_info["LoraLoader"]
+                    if "input" in lora_info and "required" in lora_info["input"]:
+                        if "lora_name" in lora_info["input"]["required"]:
+                            available_loras = set(lora_info["input"]["required"]["lora_name"][0])
+                
+                # Check workflow for model references
+                for node_id, node in workflow.items():
+                    if node.get("class_type") == "CheckpointLoaderSimple":
+                        ckpt_name = node.get("inputs", {}).get("ckpt_name")
+                        if ckpt_name and ckpt_name not in available_checkpoints:
+                            return False, f"Checkpoint model '{ckpt_name}' not found. Available: {list(available_checkpoints)[:5]}"
+                    
+                    elif node.get("class_type") == "LoraLoader":
+                        lora_name = node.get("inputs", {}).get("lora_name")
+                        if lora_name and lora_name not in available_loras:
+                            return False, f"LoRA model '{lora_name}' not found. Available: {list(available_loras)[:5]}"
+                
+                return True, "All models validated successfully"
+                
+    except Exception as e:
+        return False, f"Model validation failed: {str(e)}"
 
 async def call_comfyui(prompt_payload: dict):
     async with aiohttp.ClientSession() as session:
@@ -228,6 +319,13 @@ async def run_generation_task(subject_prompt: str, task_name: str, asset_type: s
         
         # Update the workflow with the final, combined prompt
         workflow["6"]["inputs"]["text"] = final_prompt
+
+        # Validate models before sending to ComfyUI
+        is_valid, validation_message = await validate_comfyui_models(workflow)
+        if not is_valid:
+            raise Exception(f"Model validation failed: {validation_message}")
+        
+        logging.info(f"Model validation passed: {validation_message}")
 
         # Send the job to ComfyUI
         comfy_response = await call_comfyui({"prompt": workflow})
@@ -345,14 +443,39 @@ async def chat_with_agent(agent_name: str, chat_message: ChatMessage, background
     background_tasks.add_task(
         log_chat_message,
         user_message=chat_message.message,
-        agent_response=json.dumps(response_data)
+        agent_response=json.dumps(response_data),
+        agent_name=agent_name
     )
 
     # Trigger different pipelines based on the agent
     if agent_name == "Art":
-        workflow = response_data.get("workflow")
-        asset_type = response_data.get("asset_type")
-        prompt = response_data.get("prompt")
+        # Extract JSON from conversational response
+        art_json = None
+        response_text = response_data.get("response", "")
+        
+        # Look for JSON in the response text
+        logging.info(f"Searching for JSON in Art agent response: {response_text[:200]}...")
+        # Find JSON objects that contain Art agent fields
+        json_matches = re.findall(r'\{[^{}]*(?:"workflow"|"asset_type"|"prompt")[^{}]*\}', response_text, re.DOTALL)
+        logging.info(f"Found {len(json_matches)} potential JSON matches")
+        if json_matches:
+            # Try to parse each match until we find a valid one
+            for i, match in enumerate(json_matches):
+                logging.info(f"Trying to parse JSON match {i+1}: {match}")
+                try:
+                    art_json = json.loads(match)
+                    if art_json.get("workflow") and art_json.get("asset_type") and art_json.get("prompt"):
+                        logging.info(f"Successfully extracted JSON from Art agent: {art_json}")
+                        break
+                except json.JSONDecodeError as e:
+                    logging.warning(f"Failed to parse JSON match {i+1}: {e}")
+                    continue
+        
+        # Get fields from extracted JSON
+        workflow = art_json.get("workflow") if art_json else None
+        asset_type = art_json.get("asset_type") if art_json else None
+        prompt = art_json.get("prompt") if art_json else None
+        
         logging.info(f"Art agent response: workflow={workflow}, asset_type={asset_type}, prompt={prompt}")
         if workflow and asset_type and prompt:
             task_name = chat_message.message # Use the user's message as the task name

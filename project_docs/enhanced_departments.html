@@ -1,0 +1,70 @@
+<!-- Enhanced Department Sidebar with Cloud AI Integration -->
+<aside class="pixel-border">
+    <h2 class="terminal-text">DEPARTMENTS</h2>
+    
+    <!-- Local AI Agents (Fast Response) -->
+    <div class="department-section">
+        <h3 class="terminal-text text-sm">LOCAL AGENTS</h3>
+        <ul id="local-department-list">
+            <li><a href="#" class="department-link active" data-agent="PM" data-tier="local">
+                <span class="status-indicator status-active"></span>Project Manager
+                <span class="response-time">~3s</span>
+            </a></li>
+            <li><a href="#" class="department-link" data-agent="Art" data-tier="local">
+                <span class="status-indicator status-idle"></span>Art Department
+                <span class="response-time">~3s</span>
+            </a></li>
+            <li><a href="#" class="department-link" data-agent="Writing" data-tier="local">
+                <span class="status-indicator status-idle"></span>Writing Dept.
+                <span class="response-time">~3s</span>
+            </a></li>
+            <li><a href="#" class="department-link" data-agent="Code" data-tier="local">
+                <span class="status-indicator status-idle"></span>Code Department
+                <span class="response-time">~3s</span>
+            </a></li>
+            <li><a href="#" class="department-link" data-agent="QA" data-tier="local">
+                <span class="status-indicator status-idle"></span>QA Department
+                <span class="response-time">~3s</span>
+            </a></li>
+            <li><a href="#" class="department-link" data-agent="Sound" data-tier="local">
+                <span class="status-indicator status-idle"></span>Sound Department
+                <span class="response-time">~3s</span>
+            </a></li>
+        </ul>
+    </div>
+
+    <!-- Cloud AI Strategic Layer -->
+    <div class="department-section mt-4">
+        <h3 class="terminal-text text-sm">SENIOR ENGINEERS</h3>
+        <ul id="cloud-department-list">
+            <li><a href="#" class="department-link cloud-agent" data-agent="ClaudeCode" data-tier="cloud">
+                <span class="status-indicator status-cloud"></span>Claude Code
+                <span class="capability-badge">TOOLS</span>
+                <span class="response-time">~15s</span>
+            </a></li>
+            <li><a href="#" class="department-link cloud-agent" data-agent="Gemini" data-tier="cloud">
+                <span class="status-indicator status-cloud"></span>Gemini Pro
+                <span class="capability-badge">STRATEGIC</span>
+                <span class="response-time">~20s</span>
+            </a></li>
+        </ul>
+    </div>
+
+    <!-- System Status -->
+    <div id="system-status-container" class="mt-4">
+        <h3 class="terminal-text">SYSTEM STATUS</h3>
+        <div id="websocket-status" class="task-item">Connecting...</div>
+        <div id="tool-operations-status" class="task-item">
+            <span class="terminal-text">Tool Operations: </span>
+            <span id="active-tool-count">0</span>
+        </div>
+    </div>
+
+    <!-- Strategic Mode Toggle -->
+    <div class="mt-4">
+        <label class="terminal-text">
+            <input type="checkbox" id="strategic-mode-toggle"> Strategic Mode
+        </label>
+        <small class="text-muted">Auto-escalate complex requests to Senior Engineers</small>
+    </div>
+</aside>

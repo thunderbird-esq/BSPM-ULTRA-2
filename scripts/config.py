@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     gbs_cli_path: str
     emulator_path: str
     ollama_api_url: str
-    comfyui_api_url: str
+    comfyui_api_url: str = os.getenv("COMFYUI_URL", "http://host.docker.internal:8188")
 
     class Config:
         env_file = ".env"

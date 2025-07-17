@@ -32,9 +32,17 @@ def initialize_database():
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp TEXT NOT NULL,
                     user_message TEXT NOT NULL,
-                    agent_response TEXT NOT NULL
+                    agent_response TEXT NOT NULL,
+                    agent_name TEXT
                 );
             """)
+            
+            # Check if agent_name column exists and add it if it doesn't
+            cursor = conn.execute("PRAGMA table_info(conversations)")
+            columns = [column[1] for column in cursor.fetchall()]
+            if 'agent_name' not in columns:
+                conn.execute("ALTER TABLE conversations ADD COLUMN agent_name TEXT;")
+                logging.info("Added agent_name column to conversations table")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS assets (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -130,7 +138,7 @@ def update_asset_source_path(asset_id: int, source_path: str) -> bool:
     finally:
         conn.close()
 
-def log_chat_message(user_message: str, agent_response: str):
+def log_chat_message(user_message: str, agent_response: str, agent_name: str = None):
     """Logs a user message and an agent's response to the database."""
     logging.info(f"Attempting to log chat message: {user_message}")
     conn = get_db_connection()
@@ -141,10 +149,10 @@ def log_chat_message(user_message: str, agent_response: str):
     try:
         with conn:
             conn.execute(
-                "INSERT INTO conversations (timestamp, user_message, agent_response) VALUES (?, ?, ?)",
-                (datetime.now().isoformat(), user_message, agent_response)
+                "INSERT INTO conversations (timestamp, user_message, agent_response, agent_name) VALUES (?, ?, ?, ?)",
+                (datetime.now().isoformat(), user_message, agent_response, agent_name)
             )
-        logging.info(f"Successfully logged chat message.")
+        logging.info(f"Successfully logged chat message for agent: {agent_name}")
     except sqlite3.Error as e:
         logging.error(f"Failed to log chat message: {e}")
     finally:

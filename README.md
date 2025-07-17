@@ -38,16 +38,53 @@ This project is a collection of tools and scripts to automate the generation of 
     pip install -r requirements.txt
     ```
 
+## Quick Start
+
+### Option 1: All-in-One Startup (Recommended)
+Start all services with colored output in a single terminal:
+```bash
+./start-all.sh
+```
+
+### Option 2: tmux Multi-Pane View
+Start all services in separate tmux panes for better monitoring:
+```bash
+./start-tmux.sh
+```
+
+### Stop All Services
+```bash
+./stop-all.sh
+```
+
+## Services Overview
+
+Once started, the following services will be available:
+- **Backend (FastAPI)**: http://localhost:8000 - Main web interface
+- **ComfyUI**: http://localhost:8188 - Image generation service  
+- **Ollama**: http://localhost:11434 - LLM service
+
+## Manual Startup (Alternative)
+
+If you prefer to start services individually:
+
+1. **Start Docker services (Backend + Ollama):**
+   ```bash
+   docker-compose up -d
+   ```
+
+2. **Start ComfyUI locally:**
+   ```bash
+   cd ~/ComfyUI && source venv/bin/activate && python main.py --listen 0.0.0.0 --port 8188
+   ```
+
+3. **Access the web interface:**
+   Open http://localhost:8000 in your browser
+
 ## Workflow
 
-1.  **Start the FastAPI server:**
-    ```bash
-    python scripts/main.py
-    ```
-    This will start the FastAPI server on `http://localhost:8000`.
+1. **Use the web interface:**
+   Navigate to `http://localhost:8000` for the Command Deck interface.
 
-2.  **Use the web interface:**
-    Open your web browser and navigate to `http://localhost:8000`. You will be greeted with a simple web interface to interact with the asset generation pipeline.
-
-3.  **Open the GB Studio project:**
-    Open the `project_files/MyGBCGame.gbsproj` file in GB Studio to see the generated assets.
+2. **Open the GB Studio project:**
+   Open the `project_files/MyGBCGame.gbsproj` file in GB Studio to see generated assets.
